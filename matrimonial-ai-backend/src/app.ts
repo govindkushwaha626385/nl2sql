@@ -5,6 +5,7 @@ import { generateMatrimonialSQL, generateCorrectedSQL, extractIntentFromQuestion
 import { executeMatrimonialQuery } from './services/executor.service.js';
 import { getC1ResponseForData } from './services/thesys.service.js';
 import { validateAndFixSql } from './services/sql-validator.service.js';
+import { sqlToSupabaseQuery } from './services/supabase-query.service.js';
 
 dotenv.config();
 
@@ -105,6 +106,7 @@ app.post('/api/ask', async (req: Request, res: Response) => {
       return res.status(422).json({
         success: false,
         generated_sql: sql,
+        supabase_query: sqlToSupabaseQuery(sql),
         error: results.error,
         extracted_intent,
       });
@@ -118,6 +120,7 @@ app.post('/api/ask', async (req: Request, res: Response) => {
     res.json({
       success: true,
       generated_sql: sql,
+      supabase_query: sqlToSupabaseQuery(sql),
       data: rows,
       results: rows,
       row_count: rows.length,

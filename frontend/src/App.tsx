@@ -12,6 +12,8 @@ interface ExtractedIntent {
 interface AskResponse {
   success: boolean
   generated_sql?: string
+  /** Supabase JavaScript client equivalent of the generated SQL. */
+  supabase_query?: string
   data?: Record<string, unknown>[]
   results?: Record<string, unknown>[]
   row_count?: number
@@ -209,6 +211,22 @@ function MessageContent({ msg }: { msg: Message }) {
         </div>
         <p className="text-red-600 font-medium">{res.error}</p>
         {res.detail && <p className="mt-1 text-slate-600">{res.detail}</p>}
+        {res.generated_sql && (
+          <details className="group">
+            <summary className="cursor-pointer text-xs font-semibold text-slate-500 uppercase tracking-wider">Generated SQL</summary>
+            <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-800 px-3 py-2 text-xs text-slate-200 font-mono whitespace-pre-wrap break-words">
+              <code>{res.generated_sql}</code>
+            </pre>
+          </details>
+        )}
+        {res.supabase_query && (
+          <details className="group">
+            <summary className="cursor-pointer text-xs font-semibold text-slate-500 uppercase tracking-wider">Supabase query format</summary>
+            <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-900 px-3 py-2 text-xs text-emerald-200 font-mono whitespace-pre-wrap break-words">
+              <code>{res.supabase_query}</code>
+            </pre>
+          </details>
+        )}
       </div>
     )
   }
@@ -265,9 +283,28 @@ function MessageContent({ msg }: { msg: Message }) {
         </details>
       )}
 
+      {res.supabase_query && (
+        <details className="group">
+          <summary className="cursor-pointer text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            Supabase query format
+          </summary>
+          <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-900 px-3 py-2 text-xs text-emerald-200 font-mono whitespace-pre-wrap break-words">
+            <code>{res.supabase_query}</code>
+          </pre>
+        </details>
+      )}
+
       {rows.length > 0 && (
         <>
           <DataCharts rows={rows} columns={columns} />
+          <details className="group">
+            <summary className="cursor-pointer text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+              Result as JSON
+            </summary>
+            <pre className="overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 font-mono whitespace-pre-wrap break-words max-h-64 overflow-y-auto">
+              {JSON.stringify(rows, null, 2)}
+            </pre>
+          </details>
           <div className="overflow-x-auto rounded-xl border border-slate-200">
           <div className="border-b border-slate-200 bg-slate-50 px-3 py-1.5 flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-600">Results</span>
