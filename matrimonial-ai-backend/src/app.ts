@@ -67,14 +67,28 @@ app.post('/api/ask', async (req: Request, res: Response) => {
 
   try {
     // 1. Semantic retrieval + intent extraction in parallel
-    const [context, extracted_intent] = await Promise.all([
+    const [context, intentResult] = await Promise.all([
       getRelevantContext(question),
       extractIntentFromQuestion(question),
     ]);
+    const extracted_intent = intentResult.intents;
     const schemaContext = JSON.stringify(context);
 
+    type Usage = { input: number; output: number; total: number };
+    const tokenUsage: { input: number; output: number; total: number; steps?: Record<string, Usage> } = { input: 0, output: 0, total: 0, steps: {} };
+    function addUsage(label: string, u?: Usage) {
+      if (!u) return;
+      tokenUsage.input += u.input;
+      tokenUsage.output += u.output;
+      tokenUsage.total += u.total;
+      if (tokenUsage.steps) tokenUsage.steps[label] = u;
+    }
+    addUsage('intent_extraction', intentResult.usage);
+
     const MAX_CORRECTION_ATTEMPTS = 3;
-    let sql = await generateMatrimonialSQL(question, schemaContext, extracted_intent);
+    const sqlResult = await generateMatrimonialSQL(question, schemaContext, extracted_intent);
+    let sql = sqlResult.sql;
+    addUsage('sql_generation', sqlResult.usage);
 
     // Validation layer: auto-fix common issues and validate before execution
     const validation = validateAndFixSql(sql, extracted_intent);
@@ -91,7 +105,9 @@ app.post('/api/ask', async (req: Request, res: Response) => {
 
     // 2. Query correction loop: if execution failed (or missing WHERE), fix SQL using extracted intent and re-run
     while ('error' in results && results.error && attempts < MAX_CORRECTION_ATTEMPTS) {
-      sql = await generateCorrectedSQL(question, schemaContext, sql, results.error, extracted_intent);
+      const correctedResult = await generateCorrectedSQL(question, schemaContext, sql, results.error, extracted_intent);
+      sql = correctedResult.sql;
+      addUsage('sql_correction', correctedResult.usage);
       const revalidate = validateAndFixSql(sql, extracted_intent);
       sql = revalidate.sql;
       if (!revalidate.valid && revalidate.error) {
@@ -109,13 +125,16 @@ app.post('/api/ask', async (req: Request, res: Response) => {
         supabase_query: sqlToSupabaseQuery(sql),
         error: results.error,
         extracted_intent,
+        token_usage: tokenUsage.input + tokenUsage.output > 0 ? tokenUsage : undefined,
       });
     }
 
     const rows = Array.isArray(results) ? results : [];
     let c1_response: string | null = null;
     if (process.env.THESYS_API_KEY) {
-      c1_response = await getC1ResponseForData(question, sql, rows);
+      const c1Result = await getC1ResponseForData(question, sql, rows);
+      c1_response = c1Result?.c1Response ?? null;
+      addUsage('c1_response', c1Result?.usage);
     }
     res.json({
       success: true,
@@ -125,6 +144,7 @@ app.post('/api/ask', async (req: Request, res: Response) => {
       results: rows,
       row_count: rows.length,
       extracted_intent: extracted_intent,
+      ...(tokenUsage.input + tokenUsage.output > 0 && { token_usage: tokenUsage }),
       ...(c1_response && { c1_response }),
     });
 

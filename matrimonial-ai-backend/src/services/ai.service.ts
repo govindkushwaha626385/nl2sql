@@ -3,6 +3,13 @@ dotenv.config();
 
 const useOllama = Boolean(process.env.OLLAMA_BASE_URL);
 
+/** Token usage for a single LLM call (input = prompt, output = completion). */
+export interface TokenUsage {
+  input: number;
+  output: number;
+  total: number;
+}
+
 // Re-export the provider-agnostic API; implementation is Ollama or Gemini below.
 export async function getEmbedding(text: string): Promise<number[]> {
   if (useOllama) {
@@ -12,7 +19,7 @@ export async function getEmbedding(text: string): Promise<number[]> {
   return getEmbeddingGemini(text);
 }
 
-export async function generateText(prompt: string): Promise<string> {
+export async function generateText(prompt: string): Promise<{ text: string; usage?: TokenUsage }> {
   if (useOllama) {
     const { generateText: ollamaGenerate } = await import("./ollama.service.js");
     return ollamaGenerate(prompt);
@@ -46,9 +53,20 @@ async function getEmbeddingGemini(text: string): Promise<number[]> {
   return result.embedding.values;
 }
 
-async function generateTextGemini(prompt: string): Promise<string> {
+async function generateTextGemini(prompt: string): Promise<{ text: string; usage?: TokenUsage }> {
   const { model } = await getGeminiModel();
   const result = await model.generateContent(prompt);
-  return result.response.text().trim();
+  const text = result.response.text().trim();
+  const meta = result.response.usageMetadata;
+  const usage: TokenUsage | undefined =
+    meta &&
+    (meta.promptTokenCount != null || meta.candidatesTokenCount != null)
+      ? {
+          input: meta.promptTokenCount ?? 0,
+          output: meta.candidatesTokenCount ?? 0,
+          total: meta.totalTokenCount ?? (meta.promptTokenCount ?? 0) + (meta.candidatesTokenCount ?? 0),
+        }
+      : undefined;
+  return usage ? { text, usage } : { text };
 }
 

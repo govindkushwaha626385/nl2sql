@@ -6,13 +6,20 @@
 const THESYS_API_URL = "https://api.thesys.dev/v1/chat/completions";
 const C1_MODEL = process.env.THESYS_C1_MODEL || "c1/anthropic/claude-sonnet-4/v-20250930";
 
+export interface TokenUsage {
+  input: number;
+  output: number;
+  total: number;
+}
+
 export async function getC1ResponseForData(
   question: string,
   sql: string,
   data: Record<string, unknown>[]
-): Promise<string | null> {
+): Promise<{ c1Response: string | null; usage?: TokenUsage } | null> {
   const key = process.env.THESYS_API_KEY;
   if (!key) return null;
+  const empty: { c1Response: string | null; usage?: TokenUsage } = { c1Response: null };
 
   const dataPreview =
     data.length > 0
@@ -65,16 +72,26 @@ Efficiency: One narrative + one chart (when useful) + SQL + table is enough. Do 
     if (!res.ok) {
       const err = await res.text();
       console.error("Thesys C1 API error:", res.status, err);
-      return null;
+      return empty;
     }
 
     const json = (await res.json()) as {
       choices?: Array<{ message?: { content?: string } }>;
+      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
     };
-    const content = json.choices?.[0]?.message?.content;
-    return content ?? null;
+    const content = json.choices?.[0]?.message?.content ?? null;
+    const usageRaw = json.usage;
+    const usage: TokenUsage | undefined =
+      usageRaw && (usageRaw.prompt_tokens != null || usageRaw.completion_tokens != null)
+        ? {
+            input: usageRaw.prompt_tokens ?? 0,
+            output: usageRaw.completion_tokens ?? 0,
+            total: usageRaw.total_tokens ?? (usageRaw.prompt_tokens ?? 0) + (usageRaw.completion_tokens ?? 0),
+          }
+        : undefined;
+    return { c1Response: content, ...(usage && { usage }) };
   } catch (e) {
     console.error("Thesys C1 request failed:", e);
-    return null;
+    return empty;
   }
 }

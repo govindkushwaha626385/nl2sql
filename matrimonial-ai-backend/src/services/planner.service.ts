@@ -1,4 +1,4 @@
-import { generateText } from './ai.service.js';
+import { generateText, type TokenUsage } from './ai.service.js';
 
 /** Extracted intent item: attribute (e.g. gender, profession) and value (e.g. male, doctor). */
 export interface ExtractedIntent {
@@ -7,7 +7,7 @@ export interface ExtractedIntent {
 }
 
 /** Extract structured intents from a natural language question for display and validation. */
-export async function extractIntentFromQuestion(question: string): Promise<ExtractedIntent[]> {
+export async function extractIntentFromQuestion(question: string): Promise<{ intents: ExtractedIntent[]; usage?: TokenUsage }> {
   const prompt = `
 You extract search criteria from a user's natural-language question. Output a JSON array of objects, each with keys "attribute" (string, lowercase) and "value" (string). Include only criteria the user explicitly stated; do not infer, assume, or add values (e.g. do not add "not specified", "any", or default filters).
 
@@ -40,18 +40,19 @@ User question: "${question}"
 Output only a valid JSON array of objects with "attribute" and "value" keys. No markdown, no explanation. If no criteria, output [].
 `.trim();
 
-  const text = await generateText(prompt);
+  const { text, usage } = await generateText(prompt);
   const cleaned = text.replace(/^```\w*\n?|```\s*$/g, '').trim();
   try {
     const parsed = JSON.parse(cleaned) as unknown;
-    if (!Array.isArray(parsed)) return fallbackExtractIntent(question);
+    if (!Array.isArray(parsed)) return { intents: fallbackExtractIntent(question), ...(usage && { usage }) };
     const result = parsed.filter(
       (x): x is ExtractedIntent =>
         typeof x === 'object' && x !== null && 'attribute' in x && 'value' in x && typeof (x as ExtractedIntent).attribute === 'string' && typeof (x as ExtractedIntent).value === 'string'
     );
-    return result.length > 0 ? result : fallbackExtractIntent(question);
+    const intents = result.length > 0 ? result : fallbackExtractIntent(question);
+    return { intents, ...(usage && { usage }) };
   } catch {
-    return fallbackExtractIntent(question);
+    return { intents: fallbackExtractIntent(question), ...(usage && { usage }) };
   }
 }
 
@@ -211,7 +212,8 @@ export function buildSqlFromIntent(extractedIntent: ExtractedIntent[]): string {
     } else {
       expr = expr.replace(/%<value>%/gi, `%${val}%`).replace(/<value>/gi, val).replace(/\s+or\s+/g, " OR ");
     }
-    conditions.push(expr);
+    // Wrap in parentheses if condition contains OR so AND/OR precedence is correct
+    conditions.push(expr.includes(" OR ") ? `(${expr})` : expr);
   }
 
   const whereClause = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : "";
@@ -219,12 +221,12 @@ export function buildSqlFromIntent(extractedIntent: ExtractedIntent[]): string {
   return sql;
 }
 
-export async function generateMatrimonialSQL(question: string, schemaContext: string, extractedIntent: ExtractedIntent[] = []) {
+export async function generateMatrimonialSQL(question: string, schemaContext: string, extractedIntent: ExtractedIntent[] = []): Promise<{ sql: string; usage?: TokenUsage }> {
   const normalizedIntents = extractedIntent.map((i) => ({ ...i, attribute: normalizeIntentAttribute(i.attribute) }));
 
   // When we have extracted intent, build SQL deterministically so tables/columns are always correct
   if (normalizedIntents.length > 0) {
-    return buildSqlFromIntent(extractedIntent);
+    return { sql: buildSqlFromIntent(extractedIntent) };
   }
 
   const intentBlock =
@@ -366,8 +368,8 @@ OUTPUT FORMAT AND SYNTAX
 - Before outputting: (1) Every intent criterion has a WHERE condition. (2) Every table/alias used in SELECT or WHERE has a JOIN; base is FROM profiles p. (3) No condition for an attribute not in the intent list.
 `.trim();
 
-  const text = await generateText(prompt);
-  return text.replace(/^```\w*\n?|```\s*$/g, '').trim();
+  const { text, usage } = await generateText(prompt);
+  return { sql: text.replace(/^```\w*\n?|```\s*$/g, '').trim(), ...(usage && { usage }) };
 }
 
 /** Generate a corrected SQL when a previous attempt failed with an execution error. Uses extracted intent so the corrected query matches user criteria. */
@@ -377,7 +379,7 @@ export async function generateCorrectedSQL(
   previousSql: string,
   executionError: string,
   extractedIntent: ExtractedIntent[] = []
-): Promise<string> {
+): Promise<{ sql: string; usage?: TokenUsage }> {
   const intentBlock =
     extractedIntent.length > 0
       ? `
@@ -452,6 +454,6 @@ Income: use numeric only, e.g. 10 LPA = 1000000. Write ) LIMIT 50 with no semico
 Output only the corrected SELECT statement. End list queries with ) LIMIT 50. No backticks or commentary.
 `.trim();
 
-  const text = await generateText(prompt);
-  return text.replace(/^```\w*\n?|```\s*$/g, '').trim();
+  const { text, usage } = await generateText(prompt);
+  return { sql: text.replace(/^```\w*\n?|```\s*$/g, '').trim(), ...(usage && { usage }) };
 }

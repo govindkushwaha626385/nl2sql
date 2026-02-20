@@ -14,7 +14,7 @@ async function runTest() {
     console.log(`\n📚 Pruned Schema (Tables picked):`, context.map(c => c.table_name));
 
     // 2. Generate the SQL using Reasoning
-    const sql = await generateMatrimonialSQL(userQuestion, JSON.stringify(context));
+    const { sql } = await generateMatrimonialSQL(userQuestion, JSON.stringify(context), []);
     console.log(`\n🤖 Generated SQL:\n${sql}`);
 
     // 3. Execute securely

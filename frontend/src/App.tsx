@@ -9,6 +9,13 @@ interface ExtractedIntent {
   value: string
 }
 
+interface TokenUsage {
+  input: number
+  output: number
+  total: number
+  steps?: Record<string, { input: number; output: number; total: number }>
+}
+
 interface AskResponse {
   success: boolean
   generated_sql?: string
@@ -20,6 +27,8 @@ interface AskResponse {
   c1_response?: string
   /** Extracted search criteria from the user query (for display). */
   extracted_intent?: ExtractedIntent[]
+  /** Token counts (input, output, total) and optional per-step breakdown. */
+  token_usage?: TokenUsage
   error?: string
   detail?: string
 }
@@ -99,7 +108,7 @@ function App() {
       {/* Header */}
       <header className="shrink-0 border-b border-slate-200 bg-white px-4 py-3 shadow-sm">
         <h1 className="text-xl font-semibold text-slate-800">
-          Matrimonial NL2SQL
+          Govind Singh kushwaha - Matrimonial NL2SQL
         </h1>
         <p className="text-sm text-slate-500">
           Ask in plain English — we generate SQL and show results.
@@ -227,6 +236,16 @@ function MessageContent({ msg }: { msg: Message }) {
             </pre>
           </details>
         )}
+        {res.token_usage && res.token_usage.total > 0 && (
+          <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Token counts</p>
+            <div className="flex flex-wrap gap-x-4 text-sm text-slate-700">
+              <span><strong>Input:</strong> {res.token_usage.input.toLocaleString()}</span>
+              <span><strong>Output:</strong> {res.token_usage.output.toLocaleString()}</span>
+              <span><strong>Total:</strong> {res.token_usage.total.toLocaleString()}</span>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
@@ -292,6 +311,31 @@ function MessageContent({ msg }: { msg: Message }) {
             <code>{res.supabase_query}</code>
           </pre>
         </details>
+      )}
+
+      {res.token_usage && res.token_usage.total > 0 && (
+        <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
+            Token counts
+          </p>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-700">
+            <span><strong>Input:</strong> {res.token_usage.input.toLocaleString()}</span>
+            <span><strong>Output:</strong> {res.token_usage.output.toLocaleString()}</span>
+            <span><strong>Total:</strong> {res.token_usage.total.toLocaleString()}</span>
+          </div>
+          {res.token_usage.steps && Object.keys(res.token_usage.steps).length > 0 && (
+            <details className="mt-2">
+              <summary className="cursor-pointer text-xs text-slate-500">By step</summary>
+              <ul className="mt-1.5 space-y-1 text-xs text-slate-600">
+                {Object.entries(res.token_usage.steps).map(([label, u]) => (
+                  <li key={label}>
+                    {label.replace(/_/g, ' ')}: in {u.input.toLocaleString()} · out {u.output.toLocaleString()} · total {u.total.toLocaleString()}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </div>
       )}
 
       {rows.length > 0 && (

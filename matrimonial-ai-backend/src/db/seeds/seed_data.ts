@@ -3,39 +3,60 @@ import type { Knex } from "knex";
 const FIRST_NAMES_M = [
   "Aryan", "Rohan", "Arjun", "Vikram", "Rahul", "Aditya", "Karan", "Siddharth",
   "Akash", "Varun", "Rishabh", "Ankit", "Nikhil", "Prashant", "Vivek", "Rajesh",
+  "Karthik", "Suresh", "Manish", "Deepak", "Sanjay", "Ravi", "Amit", "Pradeep",
+  "Vishal", "Gaurav", "Rajat", "Abhishek", "Sachin", "Ramesh", "Venkat", "Srinivas",
+  "Kiran", "Naveen", "Vijay", "Sandeep", "Ashish", "Rahul", "Yash", "Arun",
 ];
 const FIRST_NAMES_F = [
   "Saanvi", "Ananya", "Priya", "Kavya", "Neha", "Pooja", "Divya", "Shreya",
   "Riya", "Ishita", "Aarti", "Meera", "Kriti", "Tanvi", "Anjali", "Sneha",
+  "Pallavi", "Swati", "Nidhi", "Kiran", "Preeti", "Jyoti", "Rashmi", "Sonal",
+  "Mamta", "Vandana", "Lakshmi", "Deepa", "Sunita", "Kavita", "Pooja", "Ritu",
+  "Aditi", "Nikita", "Simran", "Komal", "Sakshi", "Nisha", "Pragya", "Vidya",
 ];
 const LAST_NAMES = [
   "Sharma", "Mehta", "Patel", "Singh", "Kumar", "Reddy", "Iyer", "Nair",
   "Gupta", "Joshi", "Desai", "Pillai", "Rao", "Khan", "Verma", "Agarwal",
+  "Kapoor", "Malhotra", "Chopra", "Sethi", "Bansal", "Tiwari", "Pandey", "Mishra",
+  "Shah", "Gandhi", "Menon", "Kulkarni", "Deshmukh", "Bose", "Chatterjee", "Mukherjee",
 ];
 const CITIES = [
   "Mumbai", "Delhi", "Bangalore", "Chennai", "Hyderabad", "Kolkata", "Pune", "Ahmedabad",
+  "Jaipur", "Lucknow", "Chandigarh", "Indore", "Coimbatore", "Kochi", "Nagpur", "Surat",
+  "Bhopal", "Visakhapatnam", "Mysore", "Thiruvananthapuram", "Mumbai", "Pune", "Delhi", "Bangalore",
 ];
 const STATES: Record<string, string> = {
   Mumbai: "Maharashtra", Delhi: "Delhi", Bangalore: "Karnataka", Chennai: "Tamil Nadu",
   Hyderabad: "Telangana", Kolkata: "West Bengal", Pune: "Maharashtra", Ahmedabad: "Gujarat",
+  Jaipur: "Rajasthan", Lucknow: "Uttar Pradesh", Chandigarh: "Chandigarh", Indore: "Madhya Pradesh",
+  Coimbatore: "Tamil Nadu", Kochi: "Kerala", Nagpur: "Maharashtra", Surat: "Gujarat",
+  Bhopal: "Madhya Pradesh", Visakhapatnam: "Andhra Pradesh", Mysore: "Karnataka",
+  Thiruvananthapuram: "Kerala",
 };
 const PROFESSIONS = [
-  "Doctor", "Engineer", "Software Developer", "Teacher", "CA", "Architect", "Lawyer",
-  "Data Scientist", "Business Analyst", "Marketing Manager", "Government Officer",
+  "Doctor", "Engineer", "Software Developer", "Software Engineer", "Teacher", "CA", "Chartered Accountant",
+  "Architect", "Lawyer", "Data Scientist", "Business Analyst", "Marketing Manager", "Government Officer",
+  "MBBS Doctor", "Surgeon", "Physician", "Dentist", "Pharmacist", "Nurse", "Professor", "Lecturer",
+  "Civil Engineer", "Mechanical Engineer", "IT Professional", "Bank Manager", "HR Manager", "Consultant",
 ];
 const RELIGIONS = ["Hindu", "Muslim", "Christian", "Sikh", "Jain"];
 const CASTES: Record<string, string[]> = {
-  Hindu: ["Brahmin", "Rajput", "Vaishya", "Kayastha", "Khatri"],
-  Muslim: ["Sunni", "Shia"],
-  Christian: ["Roman Catholic", "Protestant"],
-  Sikh: ["Jat", "Khatri"],
+  Hindu: ["Brahmin", "Rajput", "Vaishya", "Kayastha", "Khatri", "Maratha", "Bania", "Jat"],
+  Muslim: ["Sunni", "Shia", "Pathan"],
+  Christian: ["Roman Catholic", "Protestant", "Syrian Christian"],
+  Sikh: ["Jat", "Khatri", "Arora"],
   Jain: ["Digambar", "Shwetambar"],
 };
-const DEGREES = ["B.Tech", "MBBS", "B.Com", "MBA", "MCA", "B.Sc", "M.Sc", "PhD"];
-const DIET = ["Veg", "Non-Veg", "Vegan"];
+const DEGREES = ["B.Tech", "MBBS", "B.Com", "MBA", "MCA", "B.Sc", "M.Sc", "PhD", "UG", "PG", "MD", "BE", "BTech", "MBBS", "BDS"];
+const DIET = ["Vegetarian", "Veg", "Non-Veg", "Vegan", "Eggetarian"];
 const RASHI = ["Mesh", "Vrishabh", "Mithun", "Karka", "Simha", "Kanya", "Tula", "Vrishchik", "Dhanu", "Makar", "Kumbh", "Meen"];
 const MANGLIK = ["Yes", "No", "Not Specified"];
-const MOTHER_TONGUES = ["Hindi", "Marathi", "Tamil", "Telugu", "Bengali", "Gujarati", "Punjabi", "English"];
+const MOTHER_TONGUES = ["Hindi", "Marathi", "Tamil", "Telugu", "Bengali", "Gujarati", "Punjabi", "English", "Kannada", "Malayalam", "Urdu"];
+const NATIVE_PLACES = [
+  "Mumbai", "Delhi", "Pune", "Bangalore", "Chennai", "Hyderabad", "Kolkata", "Ahmedabad",
+  "Jaipur", "Lucknow", "Kerala", "Karnataka", "Maharashtra", "Gujarat", "Rajasthan", "Punjab",
+  "Indore", "Nagpur", "Coimbatore", "Kochi", "Bhopal", "Surat", "Vadodara", "Nashik",
+];
 
 function pick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]!;
@@ -65,7 +86,7 @@ export async function seed(knex: Knex): Promise<void> {
   }
   await knex("users").del();
 
-  const TOTAL = 500;
+  const TOTAL = 1200;
   console.log(`Seeding ${TOTAL} realistic matrimonial profiles...`);
 
   // 1. Users
@@ -154,34 +175,34 @@ export async function seed(knex: Knex): Promise<void> {
     }))
   );
 
-  // 8. Career details – profession, income, work_location (city)
+  // 8. Career details – profession, income (some 10+ LPA), work_location
   await knex("career_details").insert(
     profileRows.map((p, i) => ({
       profile_id: p.profile_id,
       profession: pick(PROFESSIONS),
-      company_name: `Company ${(i % 20) + 1}`,
-      annual_income: 600000 + (i % 30) * 100000,
+      company_name: pick(["TCS", "Infosys", "Wipro", "HDFC", "Apollo", "Fortis", "L&T", "Tata", "Reliance", "Startup Pvt Ltd"]),
+      annual_income: 500000 + (i % 40) * 125000,
       currency: "INR",
       work_location: pick(CITIES),
     }))
   );
 
-  // 9. Education details
+  // 9. Education details – degree_type matches query terms (MBA, B.Tech, MBBS, etc.)
   await knex("education_details").insert(
     profileRows.map((p, i) => ({
       profile_id: p.profile_id,
-      degree_type: pick(["UG", "PG", "Doctorate"]),
-      specialization: pick(["Computer Science", "Medicine", "Commerce", "Engineering", "Arts"]),
-      college_university: `University ${(i % 15) + 1}`,
+      degree_type: pick(DEGREES),
+      specialization: pick(["Computer Science", "Medicine", "Commerce", "Engineering", "Arts", "Business", "Electronics", "Civil"]),
+      college_university: pick(["IIT Delhi", "IIT Bombay", "BITS Pilani", "SRM University", "Symbiosis", "Pune University", "Mumbai University", "Delhi University", "Anna University", "JNU"]),
       passing_year: 2010 + (i % 14),
     }))
   );
 
-  // 10. User horoscopes
+  // 10. User horoscopes – place_of_birth for "originally from" style queries
   await knex("user_horoscopes").insert(
     profileRows.map((p) => ({
       profile_id: p.profile_id,
-      place_of_birth: pick(CITIES),
+      place_of_birth: pick(NATIVE_PLACES),
       rashi: pick(RASHI),
       nakshatra: "Rohini",
       manglik_status: pick(MANGLIK),
@@ -204,22 +225,22 @@ export async function seed(knex: Knex): Promise<void> {
     })
   );
 
-  // 12. Family origin
+  // 12. Family origin – native_place for "originally from" queries
   await knex("family_origin").insert(
     profileRows.map((p) => ({
       profile_id: p.profile_id,
-      native_place: pick(CITIES),
+      native_place: pick(NATIVE_PLACES),
       ancestral_origin: pick(["North India", "South India", "West India", "East India"]),
     }))
   );
 
-  // 13. Lifestyle habits – diet
+  // 13. Lifestyle habits – diet (Vegetarian/Veg for query match), smoking, drinking
   await knex("lifestyle_habits").insert(
-    profileRows.map((p) => ({
+    profileRows.map((p, i) => ({
       profile_id: p.profile_id,
       diet: pick(DIET),
-      smoking: pick(["No", "Occasionally", "No"]),
-      drinking: pick(["No", "Socially", "No"]),
+      smoking: i % 5 === 0 ? "Yes" : pick(["No", "No", "Occasionally"]),
+      drinking: i % 6 === 0 ? "Yes" : pick(["No", "No", "Socially"]),
     }))
   );
 

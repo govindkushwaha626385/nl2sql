@@ -36,7 +36,7 @@ export async function syncMetadata() {
       Max 2 sentences.
     `;
     
-    const description = await generateText(descriptionPrompt);
+    const { text: description } = await generateText(descriptionPrompt);
 
     // 4. Generate Vector Embedding for Semantic Search (pgvector format: '[x,y,z,...]')
     const embedding = await getEmbedding(description);

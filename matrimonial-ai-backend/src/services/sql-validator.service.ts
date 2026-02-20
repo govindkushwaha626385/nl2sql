@@ -79,19 +79,27 @@ export function validateAndFixSql(
     fixes.push('substituted intent values for placeholders');
   }
 
-  // 3) Remove extra closing parenthesis immediately before LIMIT (e.g. ) ) LIMIT → ) LIMIT or AND x ) LIMIT → AND x LIMIT)
+  // 3) Normalize brackets: balance parentheses in WHERE and remove extra ) before LIMIT
   const limitMatch = s.match(/\bLIMIT\s+\d+\s*;?\s*$/i);
   if (limitMatch) {
     const beforeLimit = s.slice(0, s.length - limitMatch[0].length);
-    const trimmed = beforeLimit.trimEnd();
-    // Strip one extra ) right before LIMIT if present (pattern: ... AND cond ) LIMIT)
-    if (/\)\s*\)\s*$/.test(trimmed)) {
-      s = trimmed.replace(/\)\s*\)\s*$/, ') ') + limitMatch[0];
-      fixes.push('removed extra parenthesis before LIMIT');
-    } else if (/\b(AND|OR)\s+[^)]+\)\s*\)\s*$/.test(trimmed)) {
-      s = trimmed.replace(/\)\s*\)\s*$/, ') ') + limitMatch[0];
-      fixes.push('removed extra parenthesis before LIMIT');
+    let trimmed = beforeLimit.trimEnd();
+    const whereStart = trimmed.search(/\bWHERE\b/i);
+    if (whereStart >= 0) {
+      const afterWhere = trimmed.slice(whereStart);
+      let open = 0;
+      for (const c of afterWhere) {
+        if (c === '(') open++;
+        else if (c === ')') open--;
+      }
+      // Remove extra closing parens immediately before LIMIT (e.g. ) ) LIMIT → ) LIMIT)
+      while (open < 0 && /[)]\s*$/.test(trimmed)) {
+        trimmed = trimmed.replace(/[)]\s*$/, '').trimEnd();
+        open++;
+        fixes.push('removed extra parenthesis before LIMIT');
+      }
     }
+    s = trimmed + limitMatch[0];
   }
 
   // 4) Remove semicolon before LIMIT

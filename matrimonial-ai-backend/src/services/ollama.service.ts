@@ -7,7 +7,7 @@ const OLLAMA_BASE = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "llama3.2";
 const OLLAMA_EMBEDDING_MODEL = process.env.OLLAMA_EMBEDDING_MODEL || "nomic-embed-text";
 
-export async function generateText(prompt: string): Promise<string> {
+export async function generateText(prompt: string): Promise<{ text: string; usage?: { input: number; output: number; total: number } }> {
   const res = await fetch(`${OLLAMA_BASE}/api/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -21,10 +21,20 @@ export async function generateText(prompt: string): Promise<string> {
     const err = await res.text();
     throw new Error(`Ollama generate failed (${res.status}): ${err}`);
   }
-  const data = (await res.json()) as { response?: string };
+  const data = (await res.json()) as {
+    response?: string;
+    prompt_eval_count?: number;
+    eval_count?: number;
+  };
   const text = data.response?.trim();
   if (text == null) throw new Error("Ollama returned no response text");
-  return text;
+  const inputTokens = data.prompt_eval_count ?? 0;
+  const outputTokens = data.eval_count ?? 0;
+  const usage =
+    inputTokens > 0 || outputTokens > 0
+      ? { input: inputTokens, output: outputTokens, total: inputTokens + outputTokens }
+      : undefined;
+  return { text, usage };
 }
 
 export async function getEmbedding(text: string): Promise<number[]> {
