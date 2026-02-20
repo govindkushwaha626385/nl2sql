@@ -1,9 +1,10 @@
 import express, { Request, Response } from 'express';
 import dotenv from 'dotenv';
 import { getRelevantContext } from './services/schema.service.js';
-import { generateMatrimonialSQL } from './services/planner.service.js';
+import { generateMatrimonialSQL, generateCorrectedSQL, extractIntentFromQuestion } from './services/planner.service.js';
 import { executeMatrimonialQuery } from './services/executor.service.js';
 import { getC1ResponseForData } from './services/thesys.service.js';
+import { validateAndFixSql } from './services/sql-validator.service.js';
 
 dotenv.config();
 
@@ -64,21 +65,48 @@ app.post('/api/ask', async (req: Request, res: Response) => {
   }
 
   try {
-    // 1. Semantic Retrieval: Find the most relevant tables (out of 38)
-    const context = await getRelevantContext(question);
+    // 1. Semantic retrieval + intent extraction in parallel
+    const [context, extracted_intent] = await Promise.all([
+      getRelevantContext(question),
+      extractIntentFromQuestion(question),
+    ]);
     const schemaContext = JSON.stringify(context);
 
-    // 2. AI Reasoning: Generate the Postgres SQL based on the pruned schema
-    const sql = await generateMatrimonialSQL(question, schemaContext);
+    const MAX_CORRECTION_ATTEMPTS = 3;
+    let sql = await generateMatrimonialSQL(question, schemaContext, extracted_intent);
 
-    // 3. Execution: Run the query on the READ-ONLY database for safety
-    const results = await executeMatrimonialQuery(sql);
+    // Validation layer: auto-fix common issues and validate before execution
+    const validation = validateAndFixSql(sql, extracted_intent);
+    sql = validation.sql;
+    let results: Record<string, unknown>[] | { error: string };
+    if (!validation.valid && validation.error) {
+      results = { error: validation.error };
+    } else if (extracted_intent.length > 0 && !/\bWHERE\b/i.test(sql)) {
+      results = { error: "Missing WHERE clause. Add a WHERE clause with one condition per extracted intent (e.g. profession → c.profession, city → pl.city, income → c.annual_income, religion → sb.religion, caste → sb.caste, mother_tongue → p.mother_tongue). Use only JOINs needed for those filters." };
+    } else {
+      results = await executeMatrimonialQuery(sql);
+    }
+    let attempts = 1;
+
+    // 2. Query correction loop: if execution failed (or missing WHERE), fix SQL using extracted intent and re-run
+    while ('error' in results && results.error && attempts < MAX_CORRECTION_ATTEMPTS) {
+      sql = await generateCorrectedSQL(question, schemaContext, sql, results.error, extracted_intent);
+      const revalidate = validateAndFixSql(sql, extracted_intent);
+      sql = revalidate.sql;
+      if (!revalidate.valid && revalidate.error) {
+        results = { error: revalidate.error };
+      } else {
+        results = await executeMatrimonialQuery(sql);
+      }
+      attempts++;
+    }
 
     if ('error' in results && results.error) {
       return res.status(422).json({
         success: false,
         generated_sql: sql,
         error: results.error,
+        extracted_intent,
       });
     }
 
@@ -93,6 +121,7 @@ app.post('/api/ask', async (req: Request, res: Response) => {
       data: rows,
       results: rows,
       row_count: rows.length,
+      extracted_intent: extracted_intent,
       ...(c1_response && { c1_response }),
     });
 

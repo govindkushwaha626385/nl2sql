@@ -19,6 +19,8 @@ export interface TableMeta {
   module_name: string;
   /** Detailed: purpose, join condition, when to use, example intents, key columns. Improves semantic search and planner accuracy. */
   description: string;
+  /** Comma-separated user intent keywords (e.g. "first name, last name, height, weight") so embeddings match natural language. */
+  intent_keywords?: string;
   columns: ColumnMeta[];
 }
 
@@ -26,23 +28,25 @@ export const SCHEMA_METADATA: TableMeta[] = [
   {
     table_name: "users",
     module_name: "Core",
-    description: "User accounts (login, email, verification). Use for auth-related queries only. Profile data lives in profiles; join users to profiles via profiles.user_id = users.user_id if needed. Not the main table for listing or searching profiles.",
+    description: "User accounts: created_at (when they registered), is_verified. For 'joined/registered in last X days' join users u ON p.user_id = u.user_id and WHERE u.created_at > NOW() - INTERVAL 'X days'. For 'verified' use u.is_verified = true or profile_contacts.is_mobile_verified. profiles has no created_at or is_verified.",
+    intent_keywords: "registered, joined, signup, created at, verified, verification",
     columns: [
       { name: "user_id", data_type: "SERIAL" },
       { name: "email", data_type: "VARCHAR(255)" },
       { name: "password_hash", data_type: "TEXT" },
-      { name: "created_at", data_type: "TIMESTAMP" },
+      { name: "created_at", data_type: "TIMESTAMP", description: "When user registered. Use for 'joined in last X days'." },
       { name: "last_login", data_type: "TIMESTAMP" },
       { name: "is_active", data_type: "BOOLEAN" },
-      { name: "is_verified", data_type: "BOOLEAN" },
+      { name: "is_verified", data_type: "BOOLEAN", description: "Account verified. Join users u ON p.user_id = u.user_id." },
     ],
   },
   {
     table_name: "profiles",
     module_name: "Core",
-    description: "Primary table for matrimonial profiles. Always use as base (FROM profiles p). Purpose: core bio-data for each person. Join: every related table has profile_id; use ON p.profile_id = <alias>.profile_id (integer=integer only). When to use: any query listing or filtering people. Example intents: list profiles, male/female, divorced/single, by name, by age/height, full profile. Key columns for filter/display: first_name, last_name, gender, date_of_birth, height_cm, weight_kg, marital_status, mother_tongue. Do not join p.profile_id to text columns (e.g. profession, city); use profile_id only with other table's profile_id.",
+    description: "Primary table for matrimonial profiles. Always use as base (FROM profiles p). Primary key is profile_id (there is NO column named 'id'—use p.profile_id or p.first_name, p.last_name, etc.). Key columns: first_name, last_name, gender, mother_tongue, date_of_birth, height_cm, weight_kg, marital_status. Mother tongue is in profiles.mother_tongue only (not in profile_languages). Join: ON p.profile_id = <alias>.profile_id only.",
+    intent_keywords: "first name, last name, name, full name, gender, male, female, height, weight, age, date of birth, DOB, marital status, never married, divorced, single, widowed, mother tongue, profile, bio",
     columns: [
-      { name: "profile_id", data_type: "SERIAL", description: "Primary key. Use in JOIN ON p.profile_id = <alias>.profile_id only." },
+      { name: "profile_id", data_type: "SERIAL", description: "Primary key (use this, not 'id'). Use in JOIN ON p.profile_id = <alias>.profile_id only." },
       { name: "user_id", data_type: "INTEGER", description: "FK to users; rarely needed for profile listing." },
       { name: "first_name", data_type: "VARCHAR(100)", description: "Filter/display: LOWER(p.first_name) = LOWER('value') for name search." },
       { name: "last_name", data_type: "VARCHAR(100)", description: "Filter/display: same as first_name for surname." },
@@ -84,6 +88,7 @@ export const SCHEMA_METADATA: TableMeta[] = [
     table_name: "physical_details",
     module_name: "Core",
     description: "Physical attributes per profile: body_type, complexion, blood_group, disability. Join: ON p.profile_id = physical_details.profile_id. Use for body type, complexion, blood group, or disability filters.",
+    intent_keywords: "body type, complexion, blood group, disability, physical",
     columns: [
       { name: "detail_id", data_type: "SERIAL" },
       { name: "profile_id", data_type: "INTEGER", description: "FK; JOIN ON p.profile_id = physical_details.profile_id." },
@@ -109,6 +114,7 @@ export const SCHEMA_METADATA: TableMeta[] = [
     table_name: "social_background",
     module_name: "Core",
     description: "Religion and caste per profile. Purpose: religion, caste, sub_caste, gothra, sect. Join: ON p.profile_id = sb.profile_id (integer=integer). When to use: questions about religion, caste, community. Example intents: Hindu profiles, Brahmin, by religion. Key columns: religion, caste (VARCHAR — filter/display). There is no religion_id; use sb.religion for religion value.",
+    intent_keywords: "religion, caste, community, sub caste, Brahmin, Rajput, Hindu, Muslim, Christian, sect, gothra",
     columns: [
       { name: "social_id", data_type: "SERIAL", description: "PK of this table." },
       { name: "profile_id", data_type: "INTEGER", description: "FK to profiles. Use only in JOIN: ON p.profile_id = sb.profile_id." },
@@ -154,6 +160,7 @@ export const SCHEMA_METADATA: TableMeta[] = [
     table_name: "career_details",
     module_name: "Core",
     description: "Job and career per profile. Purpose: profession, income, company, work location. Join: ON p.profile_id = c.profile_id (integer=integer). When to use: questions about lawyer, doctor, engineer, profession, income, job, work place. Example intents: lawyers in Pune, engineers, high income, list by profession. Key columns: profession (VARCHAR — use for filter/display, not in ON), annual_income, work_location, company_name. No column named position or job_title; use profession. Do not use master_professions for filtering profiles by profession; use this table.",
+    intent_keywords: "profession, job, occupation, engineer, doctor, lawyer, teacher, salary, income, LPA, earning, annual income, company, work location",
     columns: [
       { name: "career_id", data_type: "SERIAL", description: "PK of this table." },
       { name: "profile_id", data_type: "INTEGER", description: "FK to profiles. Use only in JOIN: ON p.profile_id = c.profile_id." },
@@ -168,6 +175,7 @@ export const SCHEMA_METADATA: TableMeta[] = [
     table_name: "education_details",
     module_name: "Core",
     description: "Education and qualifications per profile. Purpose: degree, specialization, college, year. Join: ON p.profile_id = ed.profile_id (integer=integer). When to use: questions about degree, education, college, qualification, UG/PG. Example intents: engineers, MBAs, from IIT. Key columns: degree_type, specialization, college_university, passing_year. There is no column education_level or education; use degree_type for degree level and specialization for field.",
+    intent_keywords: "education, degree, qualification, UG, PG, MBA, college, university, specialization, passing year",
     columns: [
       { name: "edu_id", data_type: "SERIAL", description: "PK of this table." },
       { name: "profile_id", data_type: "INTEGER", description: "FK to profiles. Use only in JOIN: ON p.profile_id = ed.profile_id." },
@@ -200,6 +208,7 @@ export const SCHEMA_METADATA: TableMeta[] = [
     table_name: "user_horoscopes",
     module_name: "Astrology",
     description: "Astrology per profile: place_of_birth, time_of_birth, rashi, nakshatra, manglik_status, horoscope_url. Join: ON p.profile_id = user_horoscopes.profile_id. Use for horoscope, rashi, nakshatra, manglik questions.",
+    intent_keywords: "manglik, non manglik, horoscope, rashi, nakshatra, place of birth, born in",
     columns: [
       { name: "horo_id", data_type: "SERIAL" },
       { name: "profile_id", data_type: "INTEGER", description: "FK; JOIN ON p.profile_id = user_horoscopes.profile_id." },
@@ -236,6 +245,7 @@ export const SCHEMA_METADATA: TableMeta[] = [
     table_name: "profile_locations",
     module_name: "Core",
     description: "Current residence and address per profile. Purpose: city, state, country, zip, residency. Join: ON p.profile_id = pl.profile_id (integer=integer). When to use: questions about city (Pune, Mumbai, Delhi), state, country, location, where they live. Example intents: profiles in Pune, from Maharashtra, living in India. Key columns: city, state, country (VARCHAR — filter/display only, not for ON). Do not use master_cities for filtering profiles by city; use this table's city column.",
+    intent_keywords: "city, location, state, country, Mumbai, Pune, Delhi, Bangalore, Hyderabad, where they live, current residence, address",
     columns: [
       { name: "loc_id", data_type: "SERIAL", description: "PK of this table." },
       { name: "profile_id", data_type: "INTEGER", description: "FK to profiles. Use only in JOIN: ON p.profile_id = pl.profile_id." },
@@ -249,7 +259,8 @@ export const SCHEMA_METADATA: TableMeta[] = [
   {
     table_name: "family_origin",
     module_name: "Core",
-    description: "Native place and ancestral origin per profile. Join: ON p.profile_id = family_origin.profile_id. Columns: native_place, ancestral_origin. Use for origin, native place questions.",
+    description: "Native place and ancestral origin per profile. Join: ON p.profile_id = family_origin.profile_id. Columns: native_place, ancestral_origin. Use for 'originally from X', native place, where they are from.",
+    intent_keywords: "originally from, native place, ancestral origin, from Mumbai, from Delhi",
     columns: [
       { name: "origin_id", data_type: "SERIAL" },
       { name: "profile_id", data_type: "INTEGER", description: "FK; JOIN ON p.profile_id = family_origin.profile_id." },
@@ -272,6 +283,7 @@ export const SCHEMA_METADATA: TableMeta[] = [
     table_name: "lifestyle_habits",
     module_name: "Core",
     description: "Lifestyle and habits per profile. Purpose: diet, smoking, drinking. Join: ON p.profile_id = lh.profile_id (integer=integer). When to use: questions about vegetarian, non-veg, vegan, smoking, drinking. Example intents: vegetarian profiles, non-smoker. Key columns: diet, smoking, drinking (VARCHAR — filter/display only, not for ON).",
+    intent_keywords: "diet, vegetarian, non veg, vegan, smoking, drinking, lifestyle",
     columns: [
       { name: "life_id", data_type: "SERIAL", description: "PK of this table." },
       { name: "profile_id", data_type: "INTEGER", description: "FK to profiles. Use only in JOIN: ON p.profile_id = lh.profile_id." },
@@ -293,11 +305,11 @@ export const SCHEMA_METADATA: TableMeta[] = [
   {
     table_name: "profile_languages",
     module_name: "Core",
-    description: "Languages spoken per profile: language_name, proficiency_level. Join: ON p.profile_id = profile_languages.profile_id. Use for language or fluency questions. Mother tongue is in profiles.mother_tongue.",
+    description: "Additional languages spoken per profile. Column is language_name (not lang_name). Use for 'languages spoken' or 'speaks X'. For mother tongue use profiles.mother_tongue only. Join: ON p.profile_id = profile_languages.profile_id; use alias plang to avoid confusion with profile_locations pl.",
     columns: [
       { name: "lang_id", data_type: "SERIAL" },
       { name: "profile_id", data_type: "INTEGER", description: "FK; JOIN ON p.profile_id = profile_languages.profile_id." },
-      { name: "language_name", data_type: "VARCHAR(100)" },
+      { name: "language_name", data_type: "VARCHAR(100)", description: "Column name is language_name (not lang_name). For mother tongue use p.mother_tongue." },
       { name: "proficiency_level", data_type: "VARCHAR(50)" },
     ],
   },
@@ -339,7 +351,8 @@ export const SCHEMA_METADATA: TableMeta[] = [
   {
     table_name: "profile_views",
     module_name: "Core",
-    description: "View tracking: viewer_id, viewed_id, viewed_at. Use for who viewed whom or view counts.",
+    description: "View tracking: viewer_id, viewed_id, viewed_at. For 'most viewed profiles' or 'top viewed this week' aggregate COUNT(*) per viewed_id, filter viewed_at >= date_trunc('week', CURRENT_DATE), ORDER BY count DESC LIMIT N. Join profiles p ON p.profile_id = viewed_id.",
+    intent_keywords: "most viewed, top viewed, view count, viewed this week",
     columns: [
       { name: "id", data_type: "SERIAL" },
       { name: "viewer_id", data_type: "INTEGER" },
@@ -350,7 +363,8 @@ export const SCHEMA_METADATA: TableMeta[] = [
   {
     table_name: "user_subscriptions",
     module_name: "Finance",
-    description: "Subscription plans per user (user_id): plan_name, start_date, end_date, is_active. Use for subscription or plan queries.",
+    description: "Subscription per user: plan_name (Basic, Gold, Platinum), end_date, is_active. Join users u ON p.user_id = u.user_id, user_subscriptions us ON u.user_id = us.user_id. For 'Platinum members' filter LOWER(us.plan_name) LIKE '%platinum%'. For 'expires next month' filter us.end_date.",
+    intent_keywords: "platinum, gold, subscription, plan, expires next month",
     columns: [
       { name: "sub_id", data_type: "SERIAL" },
       { name: "user_id", data_type: "INTEGER" },
@@ -398,6 +412,7 @@ export const SCHEMA_METADATA: TableMeta[] = [
     table_name: "family_details",
     module_name: "Core",
     description: "Family information per profile. Purpose: parents' occupation, siblings count, family type/values/status. Join: ON p.profile_id = fd.profile_id (integer=integer). When to use: questions about family type, joint/nuclear, family values. Example intents: joint family, traditional values. Key columns: family_type, family_values, family_status (VARCHAR). Marital status of the profile is in profiles.marital_status, not in this table.",
+    intent_keywords: "family type, joint family, nuclear family, family values, family status",
     columns: [
       { name: "family_id", data_type: "SERIAL", description: "PK of this table." },
       { name: "profile_id", data_type: "INTEGER", description: "FK to profiles. Use only in JOIN: ON p.profile_id = fd.profile_id." },

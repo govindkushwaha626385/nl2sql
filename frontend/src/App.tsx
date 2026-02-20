@@ -4,6 +4,11 @@ import { DataCharts } from './DataCharts'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
+interface ExtractedIntent {
+  attribute: string
+  value: string
+}
+
 interface AskResponse {
   success: boolean
   generated_sql?: string
@@ -11,6 +16,8 @@ interface AskResponse {
   results?: Record<string, unknown>[]
   row_count?: number
   c1_response?: string
+  /** Extracted search criteria from the user query (for display). */
+  extracted_intent?: ExtractedIntent[]
   error?: string
   detail?: string
 }
@@ -182,8 +189,24 @@ function MessageContent({ msg }: { msg: Message }) {
   if (!res) return <p className="text-sm">{msg.content}</p>
 
   if (!res.success) {
+    const intents = res.extracted_intent ?? []
     return (
-      <div className="text-sm">
+      <div className="text-sm space-y-3">
+        <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Extracted intent</p>
+          {intents.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {intents.map((item, i) => (
+                <span key={i} className="inline-flex items-center rounded-md bg-white border border-slate-200 px-2 py-0.5 text-xs font-medium text-slate-700">
+                  <span className="text-slate-500">{item.attribute}:</span>
+                  <span className="ml-1">{item.value}</span>
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-slate-400">No criteria extracted.</p>
+          )}
+        </div>
         <p className="text-red-600 font-medium">{res.error}</p>
         {res.detail && <p className="mt-1 text-slate-600">{res.detail}</p>}
       </div>
@@ -198,9 +221,32 @@ function MessageContent({ msg }: { msg: Message }) {
         )
       : []
 
+  const intents = res.extracted_intent ?? []
+
   return (
     <div className="space-y-4 text-left min-w-0">
       <p className="text-sm text-slate-600">{msg.content}</p>
+
+      <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2">
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
+          Extracted intent
+        </p>
+        {intents.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {intents.map((item, i) => (
+              <span
+                key={i}
+                className="inline-flex items-center rounded-md bg-white border border-slate-200 px-2 py-0.5 text-xs font-medium text-slate-700"
+              >
+                <span className="text-slate-500">{item.attribute}:</span>
+                <span className="ml-1">{item.value}</span>
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-slate-400">No criteria extracted from this query.</p>
+        )}
+      </div>
 
       {res.c1_response && (
         <div className="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden">

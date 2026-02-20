@@ -12,14 +12,15 @@ import { SCHEMA_METADATA } from "../db/metadata/schema-metadata.js";
 
 const __filename = fileURLToPath(import.meta.url);
 
-/** Build a single text per table so embeddings capture table purpose and columns for semantic search. */
+/** Build a single text per table so embeddings capture table purpose, intent keywords, and columns for semantic search. */
 function textToEmbed(table: (typeof SCHEMA_METADATA)[0]): string {
   const columnParts = table.columns.map((c) => {
     const base = `${c.name} (${c.data_type})`;
     return c.description ? `${base} — ${c.description}` : base;
   });
   const columnList = columnParts.join("; ");
-  return `${table.table_name} ${table.module_name}: ${table.description} Columns: ${columnList}`.trim();
+  const intentPart = table.intent_keywords ? ` Intent keywords: ${table.intent_keywords}.` : "";
+  return `${table.table_name} ${table.module_name}: ${table.description}${intentPart} Columns: ${columnList}`.trim();
 }
 
 async function seedMetadataEmbeddings() {
